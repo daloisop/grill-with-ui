@@ -99,6 +99,21 @@ test("serve: ready line + server.json, page, state, send appends the same line i
   assert.equal(JSON.parse(await s2.out.nth(2)).seq, 2);
 });
 
+test("serve: /send rejects a mismatched Origin, allows same-origin and no-Origin requests", async (t) => {
+  const { session } = newSession(tmp("grill-o-"));
+  const s = await startServe(session); t.after(s.stop);
+  const actions = [{ q: "q1", type: "defer" }];
+  const withOrigin = (origin, contentType = "application/json") =>
+    fetch(s.ready.url + "send", { method: "POST", headers: { "content-type": contentType, origin }, body: JSON.stringify({ actions }) });
+
+  assert.equal((await post(s.ready.url, { actions })).status, 200, "no Origin header (curl, wait mode, tests) is allowed");
+  assert.equal((await withOrigin(s.ready.url.slice(0, -1))).status, 200, "the page's own origin is allowed");
+  assert.equal((await withOrigin("https://evil.example", "text/plain")).status, 403, "a foreign origin is rejected even as a no-preflight content-type");
+  assert.equal((await withOrigin("null")).status, 403, "the sandboxed visual iframe's opaque origin is rejected too");
+
+  assert.equal(readFileSync(join(session, "events.jsonl"), "utf8").trim().split("\n").length, 2, "only the two accepted sends landed");
+});
+
 test("wait: blocks for a seq newer than --after (default: current last), prints it, exits 0; exit 3 on timeout", async (t) => {
   const { session } = newSession(tmp("grill-w-"));
   const s = await startServe(session); t.after(s.stop);
