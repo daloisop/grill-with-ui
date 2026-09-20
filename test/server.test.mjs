@@ -108,10 +108,13 @@ test("serve: /send rejects a mismatched Origin, allows same-origin and no-Origin
 
   assert.equal((await post(s.ready.url, { actions })).status, 200, "no Origin header (curl, wait mode, tests) is allowed");
   assert.equal((await withOrigin(s.ready.url.slice(0, -1))).status, 200, "the page's own origin is allowed");
+  const port = Number(new URL(s.ready.url).port);
+  assert.equal((await withOrigin(`http://localhost:${port}`)).status, 200, "the same server opened as localhost is allowed");
+  assert.equal((await withOrigin(`http://localhost:${port + 1}`)).status, 403, "localhost on another port is still rejected");
   assert.equal((await withOrigin("https://evil.example", "text/plain")).status, 403, "a foreign origin is rejected even as a no-preflight content-type");
   assert.equal((await withOrigin("null")).status, 403, "the sandboxed visual iframe's opaque origin is rejected too");
 
-  assert.equal(readFileSync(join(session, "events.jsonl"), "utf8").trim().split("\n").length, 2, "only the two accepted sends landed");
+  assert.equal(readFileSync(join(session, "events.jsonl"), "utf8").trim().split("\n").length, 3, "only the three accepted sends landed");
 });
 
 test("wait: blocks for a seq newer than --after (default: current last), prints it, exits 0; exit 3 on timeout", async (t) => {

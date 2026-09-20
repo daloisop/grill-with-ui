@@ -136,7 +136,7 @@ function cmdServe(o) {
   const page = path.join(HERE, "page.html");
   let seq = lastSeq(events);
   let lastGoodState = null;
-  let selfOrigin = "";
+  let selfOrigins = [];
 
   const send = (res, code, body, type) => { res.writeHead(code, { "content-type": type, "cache-control": "no-store" }); res.end(body); };
   const json = (res, code, obj) => send(res, code, JSON.stringify(obj), "application/json");
@@ -160,9 +160,10 @@ function cmdServe(o) {
     if (req.method === "POST" && pathname === "/send") {
       // Browsers set Origin on every POST, same-origin or not; reject a mismatch so another
       // tab (or the sandboxed visual iframe, whose Origin is "null") can't forge a send. No
-      // Origin at all — curl, wait mode, this project's own tests — is still allowed.
+      // Origin at all — curl, wait mode, this project's own tests — is still allowed. The page
+      // opened as http://localhost:<port> is this same server, so that spelling passes too.
       const origin = req.headers.origin;
-      if (origin !== undefined && origin !== selfOrigin) return json(res, 403, { error: "cross-origin request rejected" });
+      if (origin !== undefined && !selfOrigins.includes(origin)) return json(res, 403, { error: "cross-origin request rejected" });
       let parsed;
       try { parsed = JSON.parse(await readBody(req)); } catch { return json(res, 400, { error: "body must be JSON" }); }
       if (!parsed || !Array.isArray(parsed.actions) || parsed.actions.length === 0) return json(res, 400, { error: "actions must be a non-empty array" });
@@ -184,7 +185,7 @@ function cmdServe(o) {
   srv.on("listening", () => {
     const { port } = srv.address();
     const url = `http://127.0.0.1:${port}/`;
-    selfOrigin = `http://127.0.0.1:${port}`;
+    selfOrigins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
     writeJson(serverFile, { url, port, pid: process.pid, started: new Date().toISOString() });
     print({ type: "ready", url, session });
   });
